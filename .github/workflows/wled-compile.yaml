@@ -1,0 +1,52 @@
+name: WLED compile
+
+on:
+    workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade platformio
+        git rm -r $GITHUB_WORKSPACE/*.bin || true
+    - name: Run PlatformIO audioreactive_9pin esp32c3dev
+      run: |
+        rm -rf /tmp/WLEDtemp/* || true
+        mkdir -p /tmp/WLEDtemp
+        wget https://github.com/Aircoookie/WLED/archive/refs/heads/audioreactive_9pin.zip -O /tmp/WLEDtemp/mm.zip
+        unzip -o /tmp/WLEDtemp/mm.zip -d /tmp/WLEDtemp
+        find /tmp/WLEDtemp -maxdepth 1 -name "WLED-*" -type d >> /tmp/WLEDtemp/wledfoldername
+        cd `cat /tmp/WLEDtemp/wledfoldername`
+        echo '[env:custom_build]' >>platformio.ini
+        echo 'extends = env:esp32c3dev' >>platformio.ini
+        echo 'build_flags = ${env:esp32c3dev.build_flags} -D USERMOD_AUDIOREACTIVE' >>platformio.ini
+        echo 'lib_deps = ' >>platformio.ini
+        echo '  ${env:esp32c3dev.lib_deps}' >>platformio.ini
+        echo '  https://github.com/blazoncek/arduinoFFT.git' >>platformio.ini
+        
+        pio run -e custom_build || pio run -e custom_build || true
+    - name: Copy Files audioreactive_9pin esp32c3dev
+      run: |
+        cd $GITHUB_WORKSPACE
+        WLEDFOLDERNAME=`cat /tmp/WLEDtemp/wledfoldername`
+        cp ${WLEDFOLDERNAME}/build_output/firmware/custom_build.bin $GITHUB_WORKSPACE/build_audioreactive_9pin_esp32c3dev.bin || true
+        date -I | tr -d '\n' >$GITHUB_WORKSPACE/last_update_date.txt
+    - name: Commit Files audioreactive_9pin esp32c3dev
+      run: |
+        cd $GITHUB_WORKSPACE
+        git config user.name "GitHub Actions Bot"
+        git config user.email "<>"
+        git add $GITHUB_WORKSPACE/build_audioreactive_9pin_esp32c3dev.bin || true
+        git add $GITHUB_WORKSPACE/last_update_date.txt || true
+        git commit -m "Commit Custom Build" || true
+        git push origin main || true
